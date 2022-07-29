@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    
+    <h1>Main client page:</h1>
+
+
+    <input type="text" id="user_id" placeholder="user ID" >
+    <input type="text" id="nft_id" placeholder="NFT ID">
+    <button type="button" onclick="SendValue()">Отправить</button>
+    
+
+    <script>
+        var ws = new WebSocket("ws://localhost:8000/ws");
+
+        const SendValue = () => {
+            let user_id = document.getElementById("user_id").value; 
+            let nft_id = document.getElementById("nft_id").value;
+            let data = {
+                'user_id': user_id,
+                'nft_id': nft_id
+            }
+            ws.send(JSON.stringify(data))
+        }
+        ws.onmessage = function(e) {
+            console.log(e)
+        }
+        ws.onclose = function(e) {
+            console.log(e)
+        }
+    </script>
+</body>
+</html>
