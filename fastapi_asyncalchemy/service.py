@@ -24,3 +24,12 @@ def battle_start(session: AsyncSession, offer_id: str, accept_id: str):
     new_battle = Battle(offer_id=int(offer_id), accept_id=int(accept_id))
     session.add(new_battle)
     return new_battle
+
+
+def battle_round(session: AsyncSession, user_id: str, battle_id: str, choice: str, round_: str):
+    new_round = BattleRound(
+        battle_id=int(battle_id), user_id=int(user_id),
+        choice=int(choice), battle_round=int(round_)
+        )
+    session.add(new_round)
+    return new_round

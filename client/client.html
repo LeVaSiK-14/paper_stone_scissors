@@ -7,29 +7,69 @@
     <title>Document</title>
 </head>
 <body>
-    
-    <h1>Main client page:</h1>
 
+
+    <h4>
+        <span>Камень - 1</span>
+        <span>Ножницы - 2</span>
+        <span>Бумага - 3</span>
+    </h4>
+    
+    <h3 id="message"></h3>
 
     <input type="text" id="user_id" placeholder="user ID" >
-    <input type="text" id="nft_id" placeholder="NFT ID">
-    <button type="button" onclick="SendValue()">Отправить</button>
+    <input type="text" id="battle_id" placeholder="Batlle ID">
+    <input type="text" id="choice" placeholder="choice" >
+    <input type="text" id="round" placeholder="Round">
+
     
+    <h3 id="is_ready"></h3>
+    <button type="button" onclick="SendValue()">Отправить</button>
+
+
+    <h5 id="rounds_win"></h5>
+
+    <h5 id="battle_win"></h5>
+    <!-- let battle_win = document.getElementById("battle_win"); -->
+
+
+    <!-- if (data['round_win']){
+        rounds_win.innerHTML += `<h4>${data['round_win']}</h4>`
+    } -->
 
     <script>
-        var ws = new WebSocket("ws://localhost:8000/ws");
+        var ws = new WebSocket("ws://localhost:8000/ws/battles_move");
 
         const SendValue = () => {
+            let rounds_win = document.getElementById("rounds_win"); 
             let user_id = document.getElementById("user_id").value; 
-            let nft_id = document.getElementById("nft_id").value;
+            let battle_id = document.getElementById("battle_id").value;
+            let round = document.getElementById("round").value; 
+            let choice = document.getElementById("choice").value;
             let data = {
                 'user_id': user_id,
-                'nft_id': nft_id
+                'battle_id': battle_id,
+                'round': round,
+                'choice': choice
             }
             ws.send(JSON.stringify(data))
         }
         ws.onmessage = function(e) {
-            console.log(e)
+            let message = document.getElementById("message"); 
+            let is_ready = document.getElementById("is_ready"); 
+            data = JSON.parse(e.data)
+
+            if (data['player'] == 1) {
+                message.innerHTML = ''
+                message.innerHTML = data['message']
+            }
+
+            if (data['player'] == 2 ){
+                is_ready.innerHTML = ''
+                is_ready.innerHTML = data['message']
+            }
+            
+            console.log(data)
         }
         ws.onclose = function(e) {
             console.log(e)
