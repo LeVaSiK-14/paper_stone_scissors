@@ -17,40 +17,132 @@ from fastapi.responses import HTMLResponse
 app = FastAPI()
 cli = typer.Typer()
 
+html = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+
+
+    <h4>
+        <span>Камень - 1</span>
+        <span>Ножницы - 2</span>
+        <span>Бумага - 3</span>
+    </h4>
+    
+    <h3 id="message"></h3>
+
+    <input type="text" id="user_id" placeholder="user ID" >
+    <input type="text" id="battle_id" placeholder="Batlle ID">
+    <input type="text" id="choice" placeholder="choice" >
+    <input type="text" id="round" placeholder="Round">
+
+    
+    <h3 id="is_ready"></h3>
+    <button type="button" onclick="SendValue()">Отправить</button>
+
+
+    <h5 id="rounds_win"></h5>
+
+    <h5 id="battle_win"></h5>
+    <!-- let battle_win = document.getElementById("battle_win"); -->
+
+
+    <!-- if (data['round_win']){
+        rounds_win.innerHTML += `<h4>${data['round_win']}</h4>`
+    } -->
+
+    <script>
+        var ws = new WebSocket("ws://localhost:8000/ws/battles_move");
+
+        const SendValue = () => {
+            let rounds_win = document.getElementById("rounds_win"); 
+            let user_id = document.getElementById("user_id").value; 
+            let battle_id = document.getElementById("battle_id").value;
+            let round = document.getElementById("round").value; 
+            let choice = document.getElementById("choice").value;
+            let data = {
+                'user_id': user_id,
+                'battle_id': battle_id,
+                'round': round,
+                'choice': choice
+            }
+            ws.send(JSON.stringify(data))
+        }
+        ws.onmessage = function(e) {
+            let message = document.getElementById("message"); 
+            let is_ready = document.getElementById("is_ready"); 
+            data = JSON.parse(e.data)
+
+            if (data['player'] == 1) {
+                message.innerHTML = ''
+                message.innerHTML = data['message']
+            }
+
+            if (data['player'] == 2 ){
+                is_ready.innerHTML = ''
+                is_ready.innerHTML = data['message']
+            }
+            
+            console.log(data)
+        }
+        ws.onclose = function(e) {
+            console.log(e)
+        }
+    </script>
+</body>
+</html>
+"""
+
 
 @cli.command()
 def db_init_models():
     asyncio.run(init_models())
     print("Done")
+    
+    
+@app.get("/")
+async def get():
+    return HTMLResponse(html)
 
 
 manager = ConnectionManager()
 
 
 async def send_result(text):
-    await manager.active_connections[0].send_json({
+    await manager.connections[0]['websocket'].send_json({
         "round_win": text
     })
-    await manager.active_connections[1].send_json({
+    await manager.connections[1]['websocket'].send_json({
         "round_win": text
     })
     manager.user_move.clear()
-    print(manager.user_lifes)
-    print(manager.user_move, 'after clear', '\n\n\n')
     
     
 @app.websocket("/ws/battles_move")
 async def websocket_endpoint(websocket: WebSocket, session: AsyncSession = Depends(get_session)):
     await manager.connect(websocket)
-    
     try:
         while True:
             data = await websocket.receive_text()
             data = json.loads(data)
             
-            user_choice = {"user_id": data['user_id'], "choice": data['choice'], 'web_socket': websocket}
+            user_choice = {
+                "user_id": data['user_id'], 
+                "choice": data['choice'], 
+                'websocket': websocket
+            }
+            
             if user_choice not in manager.user_move:
-                service.battle_round(session, data['user_id'], data['battle_id'], data['choice'], data['round'])
+                service.battle_round(
+                    session, data['user_id'], data['battle_id'], 
+                    data['choice'], data['round']
+                )
                 await session.commit()
                 
                 manager.user_move.append(user_choice)
@@ -59,10 +151,6 @@ async def websocket_endpoint(websocket: WebSocket, session: AsyncSession = Depen
                 await websocket.send_json(
                     {"message": "вы уже сделали свой ход ожидайте противника"}
                 )
-            #     print(manager.user_move, '\n\n\n user move in else')
-            
-            # print(manager.user_move, '\n'*8)
-            # print(len(manager.user_move))
             
             if len(manager.user_move) == 1:
                 await websocket.send_json({
@@ -70,34 +158,44 @@ async def websocket_endpoint(websocket: WebSocket, session: AsyncSession = Depen
                 })
             if len(manager.user_move) == 2:
                 data = manager.user_move
+                
                 if int(data[0]['choice']) == int(data[1]['choice']):
                     await send_result('Ничья')
                     
                 elif int(data[0]['choice']) == 1 and int(data[1]['choice']) == 2:
-                    
+                    await manager.minus_lifes(data[1]['websocket'])
                     await send_result(f"Выйграл игрок с ID {data[0]['user_id']}")
-                
+                    await manager.win_lose()
+                    
                 elif int(data[0]['choice']) == 1 and int(data[1]['choice']) == 3:
+                    await manager.minus_lifes(data[0]['websocket'])
                     await send_result(f"Выйграл игрок с ID {data[1]['user_id']}")
+                    await manager.win_lose()
                     
                 elif int(data[0]['choice']) == 3 and int(data[1]['choice']) == 2:
+                    await manager.minus_lifes(data[0]['websocket'])
                     await send_result(f"Выйграл игрок с ID {data[1]['user_id']}")
-                    
-                    
+                    await manager.win_lose()
                     
                 elif int(data[0]['choice']) == 2 and int(data[1]['choice']) == 1:
+                    await manager.minus_lifes(data[0]['websocket'])
                     await send_result(f"Выйграл игрок с ID {data[1]['user_id']}")
-                
+                    await manager.win_lose()
+                    
                 elif int(data[0]['choice']) == 3 and int(data[1]['choice']) == 1:
+                    await manager.minus_lifes(data[1]['websocket'])
                     await send_result(f"Выйграл игрок с ID {data[0]['user_id']}")
+                    await manager.win_lose()
                     
                 elif int(data[0]['choice']) == 2 and int(data[1]['choice']) == 3:
+                    await manager.minus_lifes(data[1]['websocket'])
                     await send_result(f"Выйграл игрок с ID {data[0]['user_id']}")
+                    await manager.win_lose()
                     
                 else:print('___________________')
 
     except WebSocketDisconnect:
-        manager.disconnect(websocket)
+        await manager.disconnect(websocket)
     except:
         pass
 
